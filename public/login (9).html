@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/angelomimmo04/bepoli/refs/heads/master/public/logobepoli.png">
+  <meta property="og:title" content="BePoli">
+  <meta property="og:description" content="Condividi il momento, solo con chi lo vive">
+  <link rel="icon" href="https://raw.githubusercontent.com/angelomimmo04/bepoli/refs/heads/master/public/logobepoli.png">
+  <title>Login</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
+    }
+    form {
+      width: 500px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #googleSignInButton {
+      margin-top: 10px;
+    }
+
+    /* ANIMAZIONE LOGO */
+    .logo-transition {
+      animation: rotateAndSlide 1.2s forwards;
+    }
+
+    @keyframes rotateAndSlide {
+      0% {
+        transform: rotate(0deg) translateX(0);
+      }
+      50% {
+        transform: rotate(360deg) translateX(0);
+      }
+      100% {
+        transform: rotate(720deg) translateX(120vw);
+      }
+    }
+  </style>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+
+<body class="login-page">
+
+<script>
+  // Se l'utente è già loggato, lo reindirizza
+  window.addEventListener("load", () => {
+    const user = sessionStorage.getItem("user");
+    try {
+      const parsedUser = JSON.parse(user);
+      if (parsedUser && parsedUser.email) {
+        sessionStorage.setItem("playLogoAnimation", "true");
+        window.location.href = "home.html";
+      }
+    } catch (e) {
+      console.log("Utente non loggato o sessione malformata");
+    }
+  });
+
+  async function fetchAuthToken() {
+    try {
+      const res = await fetch('/api/auth-token', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        sessionStorage.setItem('token', data.token);
+      } else {
+        console.warn('Non è stato possibile ottenere il token JWT');
+        sessionStorage.removeItem('token');
+      }
+    } catch (e) {
+      console.error('Errore fetchAuthToken:', e);
+      sessionStorage.removeItem('token');
+    }
+  }
+</script>
+
+<header>
+  <img src="logobepoli.png" alt="Logo" class="logo" />
+</header>
+
+<form id="loginForm">
+  <h2 class="scritta2">BePoli</h2>
+  <input type="text" id="username" placeholder="Username" required />
+  <input type="password" id="password" placeholder="Password" required />
+  <!-- campo nascosto per token CSRF -->
+  <input type="hidden" id="csrfToken" name="_csrf" value="" />
+  <button type="submit">Login</button>
+  <div class="login-link">
+    <span>Non hai un account?</span>
+    <a href="register.html">Iscriviti</a>
+  </div>
+</form>
+
+<span class="scritta3">oppure</span>
+<div id="googleSignInButton"></div>
+
+<script>
+  // Carica il token CSRF dal server e lo mette nel form
+  async function loadCsrfToken() {
+    try {
+      const res = await fetch('/csrf-token', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('csrfToken').value = data.csrfToken;
+      } else {
+        console.error("Impossibile caricare token CSRF");
+      }
+    } catch (err) {
+      console.error("Errore caricamento token CSRF:", err);
+    }
+  }
+
+  loadCsrfToken();
+
+  // Funzione animazione + redirect
+  function startLogoTransition(redirectUrl) {
+    const logo = document.querySelector(".logo");
+    if (logo) {
+      logo.classList.add("logo-transition");
+      setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 1200); // Durata dell'animazione
+    } else {
+      window.location.href = redirectUrl;
+    }
+  }
+
+  // Login con Google (non necessita CSRF, perché è login)
+  function handleCredentialResponse(response) {
+    fetch('/auth/google', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: response.credential })
+    })
+    .then(async res => {
+      if (!res.ok) throw new Error("Errore HTTP");
+      return res.json();
+    })
+    .then(async data => {
+      sessionStorage.setItem("user", JSON.stringify(data.user));
+      await fetchAuthToken();  // <-- CHIAMATA per prendere il token JWT
+      sessionStorage.setItem("playLogoAnimation", "true");
+
+      startLogoTransition("home.html");
+    })
+    .catch(err => {
+      console.error("Errore Google login:", err);
+      alert("Errore durante il login con Google");
+    });
+  }
+
+  // Login tradizionale (manda anche il token CSRF)
+  document.getElementById("loginForm").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const csrfToken = document.getElementById("csrfToken").value;
+
+    try {
+      const response = await fetch("/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, _csrf: csrfToken }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        sessionStorage.setItem("user", JSON.stringify(data.user));
+        await fetchAuthToken();  // <-- CHIAMATA per prendere il token JWT
+        sessionStorage.setItem("playLogoAnimation", "true");
+        startLogoTransition("home.html");
+      } else {
+        alert("Errore: " + data.message);
+      }
+    } catch (error) {
+      alert("Errore di rete");
+    }
+  });
+
+  // Inizializza Google Identity
+  window.onload = function () {
+    google.accounts.id.initialize({
+      client_id: '42592859457-ausft7g5gohk7mf96st2047ul9rk8o0v.apps.googleusercontent.com',
+      callback: handleCredentialResponse
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('googleSignInButton'),
+      { theme: 'outline', size: 'large' }
+    );
+    google.accounts.id.prompt();
+  };
+</script>
+
+</body>
+</html>
+
