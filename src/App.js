@@ -1,25 +1,25 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from "react";
+import Header from "./components/Header";
+import MonitorButtons from "./components/MonitorButtons";
+import Feed from "./components/Feed";
+import { useTracking } from "./hooks/useTracking";
+import CreatePostForm from "./components/CreatePostForm";
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    const [locationFilter, setLocationFilter] = useState("Fuori dalle aree conosciute");
+
+    const { coords, locationName, status, startTracking, stopTracking } = useTracking((zoneName) => {
+        setLocationFilter(zoneName || "Fuori dalle aree conosciute");
+    });
+
+    return (
+        <div className="App">
+            <Header coords={coords} locationName={locationName} status={status} />
+            <MonitorButtons startTracking={startTracking} stopTracking={stopTracking} />
+            <CreatePostForm locationName={locationName} />
+            <Feed locationFilter={locationFilter} />
+        </div>
+    );
 }
 
 export default App;
